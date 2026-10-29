@@ -4,6 +4,7 @@ import importlib.machinery
 import importlib.util
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ SCRIPT = Path(__file__).resolve().parent.parent / "gh-secrets-audit"
 loader = importlib.machinery.SourceFileLoader("gh_secrets_audit", str(SCRIPT))
 spec = importlib.util.spec_from_loader("gh_secrets_audit", loader)
 audit_mod = importlib.util.module_from_spec(spec)
+sys.modules["gh_secrets_audit"] = audit_mod  # dataclasses look the module up while loading
 loader.exec_module(audit_mod)
 
 DEPLOY = """name: Deploy
