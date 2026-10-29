@@ -1,0 +1,13 @@
+# gh-secrets-audit ships as a single script for `gh extension install`.
+# This file only configures the development tools.
+
+[tool.ruff]
+line-length = 110
+target-version = "py39"
+include = ["gh-secrets-audit", "tests/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

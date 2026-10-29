@@ -1,0 +1,24 @@
+name: Bug report
+description: A secret or variable was reported wrongly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Only share secret **names**, never values. Rename anything sensitive."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What was reported, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: The relevant part of the workflow file
+      render: yaml
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `gh secrets-audit --version`
