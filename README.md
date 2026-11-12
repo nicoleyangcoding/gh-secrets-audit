@@ -32,6 +32,7 @@ cd your-repo
 gh secrets-audit                    # audit the repo you're in
 gh secrets-audit -R owner/repo      # audit any repo you administer
 gh secrets-audit --json             # machine-readable
+gh secrets-audit --markdown         # tables to paste into an issue or PR
 gh secrets-audit --fail-on-unused   # exit 1 on unused names too
 ```
 

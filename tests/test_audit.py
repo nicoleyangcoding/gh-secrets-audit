@@ -192,3 +192,35 @@ def test_script_runs_as_executable():
 def test_reference_styles(line):
     (ref,) = audit_mod.scan_workflow(f"run: echo {line}", "w.yml")
     assert ref.name == "FOO"
+
+
+def test_markdown_output(capsys):
+    data = {
+        "actions/secrets": ["SIGNING_KEY", "STALE"],
+        "actions/variables": ["SITE_URL"],
+        "environments": ["prod|eu"],
+        "environments/prod|eu/secrets": ["OLD"],
+        "environments/prod|eu/variables": [],
+    }
+    code, out = run_main(capsys, data, {"deploy.yml": DEPLOY}, "--markdown")
+    assert code == 1
+    lines = out.out.splitlines()
+    assert lines[0] == "### Secrets audit: o/r"
+    assert "| `DEPLOY_TOKEN` | secret | deploy.yml:11 |" in lines
+    assert "| `STALE` | secret | repo |" in lines
+    assert "| `OLD` | secret | environment: prod\\|eu |" in lines
+    assert lines[-1] == "2 missing, 2 unused, 2 in use and defined."
+
+
+def test_markdown_all_good(capsys):
+    data = {
+        "actions/secrets": ["DEPLOY_TOKEN", "SIGNING_KEY", "SPACED"],
+        "actions/variables": ["SITE_URL"],
+    }
+    code, out = run_main(capsys, data, {"deploy.yml": DEPLOY}, "--markdown")
+    assert code == 0 and "All good" in out.out and "|" not in out.out
+
+
+def test_json_and_markdown_are_exclusive(capsys):
+    with pytest.raises(SystemExit):
+        audit_mod.main(["-R", "o/r", "--json", "--markdown"], api_factory=FakeGitHub)

@@ -9,7 +9,7 @@ Small, focused releases. Suggestions are welcome in [issues](https://github.com/
 
 ## 0.3
 - [ ] Show when each unused secret was last updated (`updated_at`), oldest first
-- [ ] Markdown output for pasting into an issue
+- [x] Markdown output for pasting into an issue
 - [ ] GitHub Action wrapper for a scheduled monthly audit
 
 ## Not planned
