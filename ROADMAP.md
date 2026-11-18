@@ -8,7 +8,7 @@ Small, focused releases. Suggestions are welcome in [issues](https://github.com/
 - [ ] Check composite actions in the repo (`action.yml`) for `inputs` that look like secrets
 
 ## 0.3
-- [ ] Show when each unused secret was last updated (`updated_at`), oldest first
+- [x] Show when each unused secret was last updated (`updated_at`), oldest first
 - [x] Markdown output for pasting into an issue
 - [ ] GitHub Action wrapper for a scheduled monthly audit
 

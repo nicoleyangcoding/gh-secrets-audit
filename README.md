@@ -11,8 +11,8 @@ Missing: used in workflows but not defined
   SENTRY_DSN     secret    deploy.yml:23, deploy.yml:57
 
 Unused: defined but not referenced by any workflow
-  OLD_HEROKU_KEY secret    repo
-  STAGING_URL    variable  environment: staging
+  OLD_HEROKU_KEY secret    2022-04-11  repo
+  STAGING_URL    variable  2025-08-30  environment: staging
 
 2 missing, 2 unused, 7 in use and defined.
 ```
@@ -55,6 +55,8 @@ It also understands that:
 - In a reusable workflow, secrets declared under `on: workflow_call: secrets:` are passed in by the caller and aren't repository secrets.
 - Names are case-insensitive, as they are on GitHub.
 - Commented-out lines don't count.
+
+Unused names are listed oldest first, with the date each was last updated. A secret nobody has touched in years is usually the safest one to delete.
 
 ## Privacy and permissions
 

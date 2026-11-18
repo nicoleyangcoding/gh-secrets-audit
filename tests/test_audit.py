@@ -108,7 +108,7 @@ def test_audit_reports_missing_with_locations():
 
 
 class FakeGitHub:
-    """Stands in for the gh CLI. Paths map to names; None means HTTP 403."""
+    """Stands in for the gh CLI. Paths map to names or (name, updated_at); None means HTTP 403."""
 
     def __init__(self, repo, data=None, workflows=None):
         self.repo = repo
@@ -116,7 +116,10 @@ class FakeGitHub:
         self.workflows = workflows or {}
 
     def names(self, path, key):
-        return self.data.get(path.split(f"{self.repo}/", 1)[1], [])
+        found = self.data.get(path.split(f"{self.repo}/", 1)[1], [])
+        if found is None:
+            return None
+        return [entry if isinstance(entry, tuple) else (entry, "") for entry in found]
 
     def environments(self):
         return self.data.get("environments", [])
@@ -207,8 +210,8 @@ def test_markdown_output(capsys):
     lines = out.out.splitlines()
     assert lines[0] == "### Secrets audit: o/r"
     assert "| `DEPLOY_TOKEN` | secret | deploy.yml:11 |" in lines
-    assert "| `STALE` | secret | repo |" in lines
-    assert "| `OLD` | secret | environment: prod\\|eu |" in lines
+    assert "| `STALE` | secret | - | repo |" in lines
+    assert "| `OLD` | secret | - | environment: prod\\|eu |" in lines
     assert lines[-1] == "2 missing, 2 unused, 2 in use and defined."
 
 
@@ -224,3 +227,49 @@ def test_markdown_all_good(capsys):
 def test_json_and_markdown_are_exclusive(capsys):
     with pytest.raises(SystemExit):
         audit_mod.main(["-R", "o/r", "--json", "--markdown"], api_factory=FakeGitHub)
+
+
+def test_unused_are_oldest_first_with_dates(capsys):
+    data = {
+        "actions/secrets": [
+            "DEPLOY_TOKEN",
+            "SIGNING_KEY",
+            "SPACED",
+            ("RECENT", "2026-09-01T12:00:00Z"),
+            "UNDATED",
+            ("ANCIENT", "2021-02-03T04:05:06Z"),
+        ],
+        "actions/variables": ["SITE_URL", ("OLD_URL", "2023-05-06T00:00:00Z")],
+        "environments": ["staging"],
+        "environments/staging/secrets": [("RECENT", "2026-10-15T00:00:00Z")],
+        "environments/staging/variables": [],
+    }
+    code, out = run_main(capsys, data, {"deploy.yml": DEPLOY})
+    unused = out.out.split("Unused: defined but not referenced by any workflow\n")[1].split("\n\n")[0]
+    rows = [line.split() for line in unused.splitlines()]
+    assert [(r[0], r[2]) for r in rows] == [
+        ("ANCIENT", "2021-02-03"),
+        ("OLD_URL", "2023-05-06"),
+        ("RECENT", "2026-10-15"),
+        ("UNDATED", "-"),
+    ]
+
+    code, out = run_main(capsys, data, {"deploy.yml": DEPLOY}, "--json")
+    report = json.loads(out.out)
+    assert [(u["name"], u["updated_at"]) for u in report["unused"]] == [
+        ("ANCIENT", "2021-02-03T04:05:06Z"),
+        ("OLD_URL", "2023-05-06T00:00:00Z"),
+        ("RECENT", "2026-10-15T00:00:00Z"),
+        ("UNDATED", None),
+    ]
+
+    code, out = run_main(capsys, data, {"deploy.yml": DEPLOY}, "--markdown")
+    assert "| `ANCIENT` | secret | 2021-02-03 | repo |" in out.out.splitlines()
+
+
+def test_github_names_parses_name_and_date(monkeypatch):
+    api = audit_mod.GitHub("o/r")
+    monkeypatch.setattr(api, "_api", lambda path, jq: ["A\t2024-01-02T00:00:00Z", "B\t"])
+    assert api.names("repos/o/r/actions/secrets", "secrets") == [("A", "2024-01-02T00:00:00Z"), ("B", "")]
+    monkeypatch.setattr(api, "_api", lambda path, jq: None)
+    assert api.names("repos/o/r/actions/secrets", "secrets") is None
