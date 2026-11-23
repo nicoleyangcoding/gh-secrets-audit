@@ -36,7 +36,7 @@ gh secrets-audit --markdown         # tables to paste into an issue or PR
 gh secrets-audit --fail-on-unused   # exit 1 on unused names too
 ```
 
-Exit status is `1` when something is missing (or unused, with `--fail-on-unused`), `0` when everything checks out, and `2` when the audit couldn't run.
+Exit status is `1` when something is missing or in the wrong environment (or unused, with `--fail-on-unused`), `0` when everything checks out, and `2` when the audit couldn't run.
 
 ## What it checks
 
@@ -55,6 +55,8 @@ It also understands that:
 - In a reusable workflow, secrets declared under `on: workflow_call: secrets:` are passed in by the caller and aren't repository secrets.
 - Names are case-insensitive, as they are on GitHub.
 - Commented-out lines don't count.
+
+It also flags names that are defined **only** as environment secrets or variables but used by a job that doesn't set that `environment:`. GitHub only gives environment values to jobs that declare the environment, so those read as empty at run time. Jobs whose environment is an expression, like `${{ matrix.target }}`, are skipped.
 
 Unused names are listed oldest first, with the date each was last updated. A secret nobody has touched in years is usually the safest one to delete.
 

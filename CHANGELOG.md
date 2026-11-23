@@ -2,6 +2,11 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-23
+
+### Added
+- Warn when a secret or variable is defined only for an environment, but a job that uses it doesn't set that environment. These count toward exit status 1, like missing names
+
 ## [0.3.0] - 2026-11-18
 
 ### Added

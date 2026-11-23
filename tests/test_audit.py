@@ -273,3 +273,98 @@ def test_github_names_parses_name_and_date(monkeypatch):
     assert api.names("repos/o/r/actions/secrets", "secrets") == [("A", "2024-01-02T00:00:00Z"), ("B", "")]
     monkeypatch.setattr(api, "_api", lambda path, jq: None)
     assert api.names("repos/o/r/actions/secrets", "secrets") is None
+
+
+ENVIRONMENTS = """on: push
+env:
+  TOP: ${{ secrets.PROD_KEY }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+        env:
+          KEY: ${{ secrets.PROD_KEY }}
+  deploy:
+    runs-on: ubuntu-latest
+    environment: 'Production'  # case doesn't matter
+    steps:
+      - run: ./deploy.sh
+        env:
+          KEY: ${{ secrets.PROD_KEY }}
+  stage:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.example.com
+    steps:
+      - run: echo ${{ vars.PROD_URL }} ${{ secrets.PROD_KEY }}
+  preview:
+    environment: { name: preview, url: "https://example.com" }
+    steps:
+      - run: echo ${{ secrets.PROD_KEY }}
+  matrix:
+    environment: ${{ matrix.target }}
+    steps:
+      - run: echo ${{ secrets.PROD_KEY }}
+"""
+
+
+def test_job_environments():
+    lines = ENVIRONMENTS.splitlines()
+    envs = audit_mod._job_environments(lines)
+    by_line = {line.strip(): env for line, env in zip(lines, envs)}
+    assert by_line["TOP: ${{ secrets.PROD_KEY }}"] is None
+    assert envs[9] == ""  # build sets no environment
+    assert envs[16] == "Production"
+    assert by_line["- run: echo ${{ vars.PROD_URL }} ${{ secrets.PROD_KEY }}"] == "staging"
+    assert by_line['environment: { name: preview, url: "https://example.com" }'] == "preview"
+    assert by_line["environment: ${{ matrix.target }}"] == "${{ matrix.target }}"
+
+
+def test_job_environments_without_jobs():
+    assert audit_mod._job_environments(["run: echo hi"]) == [None]
+
+
+def test_wrong_environment_is_reported(capsys):
+    data = {
+        "actions/secrets": [],
+        "actions/variables": [],
+        "environments": ["production", "staging"],
+        "environments/production/secrets": ["PROD_KEY"],
+        "environments/production/variables": ["PROD_URL"],
+        "environments/staging/secrets": [],
+        "environments/staging/variables": [],
+    }
+    code, out = run_main(capsys, data, {"envs.yml": ENVIRONMENTS})
+    assert code == 1
+    assert "Wrong environment: defined only for an environment these jobs don't set" in out.out
+    assert "envs.yml:10, envs.yml:24, envs.yml:28  (defined for production)" in out.out
+    assert "envs.yml:24  (defined for production)" in out.out  # PROD_URL
+    assert "envs.yml:3" not in out.out and "envs.yml:17" not in out.out and "envs.yml:32" not in out.out
+    summary = "0 missing, 0 unused, 2 in the wrong environment, 2 in use and defined."
+    assert out.out.splitlines()[-1] == summary
+
+    code, out = run_main(capsys, data, {"envs.yml": ENVIRONMENTS}, "--json")
+    report = json.loads(out.out)
+    assert report["wrong_environment"][0] == {
+        "kind": "secret",
+        "name": "PROD_KEY",
+        "references": ["envs.yml:10", "envs.yml:24", "envs.yml:28"],
+        "defined_for": ["production"],
+    }
+
+    code, out = run_main(capsys, data, {"envs.yml": ENVIRONMENTS}, "--markdown")
+    assert "| `PROD_URL` | variable | envs.yml:24 | production |" in out.out.splitlines()
+
+
+def test_names_also_defined_for_the_repo_are_not_wrong_environment(capsys):
+    data = {
+        "actions/secrets": ["PROD_KEY"],
+        "actions/variables": ["PROD_URL"],
+        "environments": ["production"],
+        "environments/production/secrets": ["PROD_KEY"],
+        "environments/production/variables": [],
+    }
+    code, out = run_main(capsys, data, {"envs.yml": ENVIRONMENTS})
+    assert code == 0 and "Wrong environment" not in out.out and "All good" in out.out
